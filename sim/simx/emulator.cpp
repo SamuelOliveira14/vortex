@@ -173,15 +173,17 @@ instr_trace_t* Emulator::step() {
     stalled_warps_.reset(0);
   }
 
-  // find next ready warp
-  for (size_t wid = 0, nw = arch_.num_warps(); wid < nw; ++wid) {
-    bool warp_active = active_warps_.test(wid);
-    bool warp_stalled = stalled_warps_.test(wid);
-    if (warp_active && !warp_stalled) {
-      scheduled_warp = wid;
-      break;
-    }
-  }
+  // WARP SCHEDULER
+  int scheduling_policy = 0;
+  #ifdef SCHEDULING_POLICY
+
+    #if SCHEDULING_POLICY + 1
+        scheduling_policy = SCHEDULING_POLICY;
+    #endif
+    
+  #endif
+
+  scheduled_warp = this->schedule_warp((SchedulerPolicy) scheduling_policy);
   if (scheduled_warp == -1)
     return nullptr;
 
