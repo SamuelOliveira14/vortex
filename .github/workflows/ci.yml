@@ -17,31 +17,34 @@ on: [push, pull_request]
 
 jobs:
   setup:
-    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Cache Toolchain Directory
         id: cache-toolchain
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: tools
-          key: ${{ runner.os }}-toolchain-v0.1
+          key: ${{ matrix.os }}-toolchain-v0.1
           restore-keys: |
-            ${{ runner.os }}-toolchain-
+            ${{ matrix.os }}-toolchain-
 
       - name: Cache Third Party Directory
         id: cache-thirdparty
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: third_party
-          key: ${{ runner.os }}-thirdparty-v0.1
+          key: ${{ matrix.os }}-thirdparty-v0.1
           restore-keys: |
-            ${{ runner.os }}-thirdparty-
+            ${{ matrix.os }}-thirdparty-
 
       - name: Install Dependencies
         if: steps.cache-toolchain.outputs.cache-hit != 'true' || steps.cache-thirdparty.outputs.cache-hit != 'true'
@@ -63,15 +66,16 @@ jobs:
           make -C third_party > /dev/null
 
   build:
-    runs-on: ubuntu-20.04
     needs: setup
     strategy:
       matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
         xlen: [32, 64]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: |
@@ -79,21 +83,21 @@ jobs:
 
       - name: Cache Toolchain Directory
         id: cache-toolchain
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: tools
-          key: ${{ runner.os }}-toolchain-v0.1
+          key: ${{ matrix.os }}-toolchain-v0.1
           restore-keys: |
-            ${{ runner.os }}-toolchain-
+            ${{ matrix.os }}-toolchain-
 
       - name: Cache Third Party Directory
         id: cache-thirdparty
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: third_party
-          key: ${{ runner.os }}-thirdparty-v0.1
+          key: ${{ matrix.os }}-thirdparty-v0.1
           restore-keys: |
-            ${{ runner.os }}-thirdparty-
+            ${{ matrix.os }}-thirdparty-
 
       - name: Run Build
         run: |
@@ -108,21 +112,22 @@ jobs:
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ matrix.xlen }}
+          name: build-${{ matrix.os }}-${{ matrix.xlen }}
           path: build${{ matrix.xlen }}
 
   tests:
-    runs-on: ubuntu-20.04
     needs: build
     strategy:
       fail-fast: false
       matrix:
-        name: [regression, opencl, cache, config1, config2, debug, scope, stress, synthesis, vm, vector]
+        os: [ubuntu-22.04, ubuntu-24.04]
+        name: [regression, opencl, cache, config1, config2, debug, scope, stress, synthesis, vm, vector, cupbop, tensor]
         xlen: [32, 64]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: |
@@ -130,26 +135,26 @@ jobs:
 
       - name: Cache Toolchain Directory
         id: cache-toolchain
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: tools
-          key: ${{ runner.os }}-toolchain-v0.1
+          key: ${{ matrix.os }}-toolchain-v0.1
           restore-keys: |
-            ${{ runner.os }}-toolchain-
+            ${{ matrix.os }}-toolchain-
 
       - name: Cache Third Party Directory
         id: cache-thirdparty
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: third_party
-          key: ${{ runner.os }}-thirdparty-v0.1
+          key: ${{ matrix.os }}-thirdparty-v0.1
           restore-keys: |
-            ${{ runner.os }}-thirdparty-
+            ${{ matrix.os }}-thirdparty-
 
       - name: Download Build Artifact
         uses: actions/download-artifact@v4
         with:
-          name: build-${{ matrix.xlen }}
+          name: build-${{ matrix.os }}-${{ matrix.xlen }}
           path: build${{ matrix.xlen }}
 
       - name: Run tests
@@ -167,7 +172,7 @@ jobs:
           fi
 
   complete:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: tests
 
     steps:
