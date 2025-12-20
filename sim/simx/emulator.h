@@ -92,6 +92,8 @@ public:
 
   instr_trace_t* step();
 
+  int schedule_warp(SchedulerPolicy policy);
+
   bool running() const;
 
   void suspend(uint32_t wid);
@@ -110,6 +112,78 @@ public:
 
 private:
 
+  int schedule_RR();
+  int schedule_RR_RR();
+  int schedule_RR_GTO();
+  int schedule_GTO_GTO();
+  int schedule_GTO_RR();
+  int schedule_GTO();
+  int schedule_TMASK();
+
+
+  struct ipdom_entry_t {
+    ipdom_entry_t(const ThreadMask &orig_tmask, const ThreadMask &else_tmask, Word PC)
+      : orig_tmask (orig_tmask)
+      , else_tmask (else_tmask)
+      , PC         (PC)
+      , fallthrough(false)
+    {}
+
+    ThreadMask  orig_tmask;
+    ThreadMask  else_tmask;
+    Word        PC;
+    bool        fallthrough;
+  };
+
+  struct vtype_t {
+    uint32_t vill;
+    uint32_t vma;
+    uint32_t vta;
+    uint32_t vsew;
+    uint32_t vlmul;
+  };
+
+  union reg_data_t {
+    Word     u;
+    WordI    i;
+    WordF    f;
+    float    f32;
+    double   f64;
+    uint32_t u32;
+    uint64_t u64;
+    int32_t  i32;
+    int64_t  i64;
+  };
+
+  struct warp_t {
+    warp_t(const Arch& arch);
+    void clear(uint64_t startup_addr);
+
+    Word                              PC;
+    ThreadMask                        tmask;
+    std::vector<std::vector<Word>>    ireg_file;
+    std::vector<std::vector<uint64_t>>freg_file;
+    std::stack<ipdom_entry_t>         ipdom_stack;
+    Byte                              fcsr;
+    uint32_t                          age = 0;
+#ifdef EXT_V_ENABLE
+    std::vector<std::vector<Byte>>    vreg_file;
+    vtype_t                           vtype;
+    uint32_t                          vl;
+    Word                              vlmax;
+#endif
+    uint32_t                          uuid;
+  };
+
+  struct wspawn_t {
+    bool valid;
+    uint32_t num_warps;
+    Word nextPC;
+  };
+
+  std::shared_ptr<Instr> decode(uint32_t code) const;
+
+  void execute(const Instr &instr, uint32_t wid, instr_trace_t *trace);
   uint32_t fetch(uint32_t wid, uint64_t uuid);
 
   void decode(uint32_t code, uint32_t wid, uint64_t uuid);
@@ -148,6 +222,9 @@ private:
   std::vector<warp_t> warps_;
   WarpMask    active_warps_;
   WarpMask    stalled_warps_;
+  WarpMask    visible_warps_;
+  uint32_t    visible_warps_index_;
+  int         oldest_warp_ = -1;
   std::vector<WarpMask> barriers_;
   std::unordered_map<int, std::stringstream> print_bufs_;
   MemoryUnit  mmu_;
